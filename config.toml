@@ -1,0 +1,55 @@
+# ZeroClaw workspace config — Trợ Lý Lớp Học
+api_key             = "${GROQ_API_KEY}"
+default_provider    = "groq"
+default_model       = "llama-3.3-70b-versatile"
+default_temperature = 0.7
+
+[agent]
+max_tool_iterations  = 8
+max_history_messages = 40
+compact_context      = false
+parallel_tools       = false
+tool_dispatcher      = "auto"
+
+[identity]
+format = "openclaw"
+
+[memory]
+backend          = "sqlite"
+auto_save        = true
+embedding_provider = "none"
+auto_hydrate     = true
+
+[autonomy]
+level                          = "supervised"
+workspace_only                 = false
+allowed_commands               = ["open", "ls", "cat", "dir"]
+forbidden_paths                = ["C:/Windows", "C:/Users/%USER%/.ssh"]
+allowed_roots                  = ["C:/ClassroomFiles"]
+max_actions_per_hour           = 60
+max_cost_per_day_cents         = 0
+require_approval_for_medium_risk = false
+block_high_risk_commands       = true
+shell_env_passthrough          = []
+auto_approve                   = ["file_read", "memory_recall"]
+always_ask                     = []
+non_cli_excluded_tools         = []
+
+[skills]
+open_skills_enabled    = false
+prompt_injection_mode  = "full"
+
+[reliability]
+provider_retries    = 2
+provider_backoff_ms = 500
+fallback_providers  = []
+api_keys            = []
+
+[gateway]
+port               = 42617
+host               = "127.0.0.1"
+require_pairing    = true
+allow_public_bind  = false
+
+[secrets]
+encrypt = true

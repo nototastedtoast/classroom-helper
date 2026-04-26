@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trợ Lý Lớp Học</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+
+  body {
+    background: transparent;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    height: 100vh;
+    overflow: hidden;
+    /* Show a subtle grid when not in overlay popup */
+    background-color: #0d0d1a;
+  }
+
+  /* ── Overlay widget ── */
+  #widget {
+    width: 360px;
+    height: 100vh;
+    max-height: 100vh;
+    background: rgba(15, 15, 30, 0.92);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border-left: 1px solid rgba(255,255,255,.08);
+    display: flex;
+    flex-direction: column;
+    color: #e2e8f0;
+    overflow: hidden;
+    transition: width .25s ease, height .25s ease;
+  }
+
+  #widget.collapsed {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.15);
+    cursor: pointer;
+    margin: 16px;
+    overflow: hidden;
+    flex-shrink: 0;
+    align-self: flex-start;
+    align-items: center;
+    justify-content: center;
+  }
+  #widget.collapsed > *:not(#collapse-btn) { display: none; }
+  #widget.collapsed #collapse-btn {
+    width: 52px; height: 52px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; border: none; background: none; color: #e2e8f0; cursor: pointer;
+  }
+
+  /* ── Titlebar ── */
+  #titlebar {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    gap: 8px;
+    cursor: grab;
+    border-bottom: 1px solid rgba(255,255,255,.07);
+    flex-shrink: 0;
+    user-select: none;
+  }
+  #titlebar:active { cursor: grabbing; }
+  .dot-live { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 8px #4ade80; flex-shrink: 0; }
+  #titlebar h1 { font-size: .82rem; font-weight: 600; flex: 1; opacity: .9; }
+  .tb-btn { background: none; border: none; color: rgba(255,255,255,.45); cursor: pointer; font-size: .9rem; padding: 3px 5px; border-radius: 5px; transition: .15s; }
+  .tb-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
+
+  /* ── Quick pills ── */
+  #pills {
+    display: flex;
+    gap: 5px;
+    padding: 8px 10px;
+    overflow-x: auto;
+    flex-shrink: 0;
+    scrollbar-width: none;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+  }
+  #pills::-webkit-scrollbar { display: none; }
+  .pill {
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: .72rem;
+    white-space: nowrap;
+    cursor: pointer;
+    color: #cbd5e1;
+    transition: .15s;
+    flex-shrink: 0;
+  }
+  .pill:hover { background: rgba(129,140,248,.25); border-color: #818cf8; color: #c7d2fe; }
+
+
+  /* ── Chat ── */
+  #chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    scroll-behavior: smooth;
+  }
+  #chat::-webkit-scrollbar { width: 3px; }
+  #chat::-webkit-scrollbar-track { background: transparent; }
+  #chat::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 3px; }
+
+  .bubble {
+    max-width: 85%;
+    padding: 8px 12px;
+    border-radius: 14px;
+    font-size: .82rem;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+  .bubble.user {
+    background: #3730a3;
+    color: #e0e7ff;
+    align-self: flex-end;
+    border-bottom-right-radius: 3px;
+  }
+  .bubble.bot {
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.1);
+    color: #e2e8f0;
+    align-self: flex-start;
+    border-bottom-left-radius: 3px;
+  }
+  .bubble.thinking {
+    background: rgba(255,255,255,.04);
+    border: 1px dashed rgba(255,255,255,.15);
+    color: rgba(255,255,255,.35);
+    font-style: italic;
+    font-size: .78rem;
+  }
+
+  /* ── Input bar ── */
+  #input-bar {
+    padding: 8px 10px;
+    border-top: 1px solid rgba(255,255,255,.07);
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  #msg {
+    flex: 1;
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 10px;
+    padding: 8px 11px;
+    font-size: .82rem;
+    color: #e2e8f0;
+    outline: none;
+    font-family: inherit;
+    transition: .15s;
+  }
+  #msg::placeholder { color: rgba(255,255,255,.3); }
+  #msg:focus { border-color: #818cf8; background: rgba(255,255,255,.1); }
+
+  /* Mic button */
+  #mic-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.15);
+    background: rgba(255,255,255,.07);
+    color: #94a3b8;
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: .15s;
+  }
+  #mic-btn:hover { background: rgba(255,255,255,.15); color: #fff; }
+  #mic-btn.recording {
+    background: rgba(239,68,68,.25);
+    border-color: #ef4444;
+    color: #fca5a5;
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)} 50%{box-shadow:0 0 0 6px rgba(239,68,68,0)} }
+
+  #send-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: #3730a3;
+    color: #fff;
+    font-size: .9rem;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: opacity .15s;
+  }
+  #send-btn:hover { opacity: .8; }
+  #send-btn:disabled { opacity: .35; cursor: default; }
+
+  /* ── File drawer ── */
+  #file-drawer {
+    border-top: 1px solid rgba(255,255,255,.07);
+    flex-shrink: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height .3s ease;
+  }
+  #file-drawer.open { max-height: 220px; }
+  #file-drawer-inner {
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .dz {
+    border: 1px dashed rgba(255,255,255,.2);
+    border-radius: 8px;
+    padding: 8px;
+    text-align: center;
+    font-size: .72rem;
+    color: rgba(255,255,255,.4);
+    cursor: pointer;
+    transition: .2s;
+    flex-shrink: 0;
+  }
+  .dz:hover, .dz.drag-over { border-color: #818cf8; color: #c7d2fe; background: rgba(129,140,248,.1); }
+  #file-list-mini { overflow-y: auto; max-height: 130px; }
+  #file-list-mini::-webkit-scrollbar { width: 2px; }
+  #file-list-mini::-webkit-scrollbar-thumb { background: rgba(255,255,255,.2); }
+  .fi {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 5px; border-radius: 6px;
+    font-size: .75rem; color: #cbd5e1;
+    transition: .15s; cursor: pointer;
+  }
+  .fi:hover { background: rgba(255,255,255,.08); }
+  .fi .fn { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fi .fd { font-size: .65rem; color: rgba(255,255,255,.3); flex-shrink: 0; }
+  .fi .fx { opacity: 0; font-size: .7rem; cursor: pointer; padding: 1px 4px; border-radius: 3px; transition: .15s; flex-shrink: 0; }
+  .fi:hover .fx { opacity: .6; }
+  .fi .fx:hover { opacity: 1; background: rgba(239,68,68,.25); color: #fca5a5; }
+
+  /* ── STT transcript preview ── */
+  #stt-preview {
+    margin: 0 10px 0;
+    padding: 6px 10px;
+    background: rgba(129,140,248,.1);
+    border: 1px solid rgba(129,140,248,.3);
+    border-radius: 8px;
+    font-size: .75rem;
+    color: #a5b4fc;
+    display: none;
+    flex-shrink: 0;
+    font-style: italic;
+  }
+
+  /* ── Mic not supported notice ── */
+  #no-mic { display: none; font-size: .7rem; color: rgba(255,100,100,.7); padding: 0 10px 6px; text-align: center; }
+
+  /* Launch overlay button (shown on main page) */
+  #launch-overlay {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(55,48,163,.9); color: #fff; border: none; border-radius: 24px;
+    padding: 10px 22px; font-size: .85rem; cursor: pointer; backdrop-filter: blur(8px);
+    box-shadow: 0 4px 20px rgba(0,0,0,.4); transition: opacity .15s; display: none;
+  }
+</style>
+</head>
+<body>
+
+<div id="widget">
+
+  <!-- Titlebar (drag handle) -->
+  <div id="titlebar">
+    <div class="dot-live"></div>
+    <h1>Trợ Lý Lớp Học</h1>
+    <button class="tb-btn" title="Files" onclick="toggleDrawer()">📂</button>
+    <button class="tb-btn" id="float-btn" title="Mở cửa sổ nổi" onclick="launchFloat()">⧉</button>
+    <button class="tb-btn" id="collapse-btn" title="Thu nhỏ" onclick="toggleCollapse()">—</button>
+  </div>
+
+  <!-- Quick commands -->
+  <div id="pills">
+    <span class="pill" onclick="send('hôm nay học gì')">📅 Lịch</span>
+    <span class="pill" onclick="send('ôn bài hôm trước')">📖 Ôn bài</span>
+    <span class="pill" onclick="send('tóm tắt')">📝 Tóm tắt</span>
+    <span class="pill" onclick="send('lưu tiến độ')">💾 Lưu</span>
+  </div>
+
+
+  <!-- STT transcript live preview -->
+  <div id="stt-preview"></div>
+  <div id="no-mic">Trình duyệt không hỗ trợ micro. Dùng Chrome hoặc Edge.</div>
+
+  <!-- Chat -->
+  <div id="chat"></div>
+
+  <!-- Input bar -->
+  <div id="input-bar">
+    <button id="mic-btn" title="Giữ để nói" onclick="toggleMic()">🎙</button>
+    <input id="msg" type="text" placeholder="Nhập hoặc nói..." autocomplete="off">
+    <button id="send-btn" onclick="sendFromInput()">➤</button>
+  </div>
+
+  <!-- File drawer -->
+  <div id="file-drawer">
+    <div id="file-drawer-inner">
+      <div class="dz" id="dz" onclick="document.getElementById('fi').click()">
+        📂 Kéo file vào đây hoặc click để tải lên
+      </div>
+      <input id="fi" type="file" multiple style="display:none" onchange="uploadFiles(this.files)">
+      <div id="file-list-mini"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────────
+const chatEl  = document.getElementById('chat');
+const msgEl   = document.getElementById('msg');
+const sendBtn = document.getElementById('send-btn');
+const micBtn  = document.getElementById('mic-btn');
+const sttPrev = document.getElementById('stt-preview');
+let isRecording = false;
+let recognition = null;
+
+// ── Chat ───────────────────────────────────────────────────────────────────────
+function addBubble(text, role) {
+  const d = document.createElement('div');
+  d.className = `bubble ${role}`;
+  d.textContent = text;
+  chatEl.appendChild(d);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return d;
+}
+
+async function send(message) {
+  if (!message.trim()) return;
+  addBubble(message, 'user');
+  const thinking = addBubble('…', 'thinking');
+  sendBtn.disabled = true;
+  try {
+    const res  = await fetch('/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message})});
+    const data = await res.json();
+    thinking.remove();
+    addBubble(data.reply || data.error || '?', 'bot');
+  } catch {
+    thinking.remove();
+    addBubble('Lỗi kết nối.', 'bot');
+  } finally {
+    sendBtn.disabled = false;
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+}
+
+function sendFromInput() {
+  const msg = msgEl.value.trim();
+  if (!msg) return;
+  msgEl.value = '';
+  send(msg);
+}
+msgEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendFromInput(); } });
+
+// ── Microphone (Web Speech API) ────────────────────────────────────────────────
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+if (!SpeechRecognition) {
+  document.getElementById('no-mic').style.display = 'block';
+  micBtn.style.display = 'none';
+} else {
+  recognition = new SpeechRecognition();
+  recognition.lang = 'vi-VN';
+  recognition.continuous = false;
+  recognition.interimResults = true;
+
+  recognition.onresult = e => {
+    let interim = '', final = '';
+    for (const r of e.results) {
+      if (r.isFinal) final += r[0].transcript;
+      else interim += r[0].transcript;
+    }
+    sttPrev.style.display = 'block';
+    sttPrev.textContent   = final || interim;
+    if (final) {
+      sttPrev.style.display = 'none';
+      sttPrev.textContent   = '';
+      stopMic();
+      send(final.trim());
+    }
+  };
+
+  recognition.onerror = e => {
+    stopMic();
+    if (e.error !== 'no-speech') addBubble(`Lỗi micro: ${e.error}`, 'bot');
+  };
+
+  recognition.onend = () => stopMic();
+}
+
+function toggleMic() {
+  if (!SpeechRecognition) return;
+  isRecording ? stopMic() : startMic();
+}
+
+function startMic() {
+  isRecording = true;
+  micBtn.classList.add('recording');
+  micBtn.title = 'Đang nghe… click để dừng';
+  sttPrev.style.display = 'block';
+  sttPrev.textContent   = 'Đang nghe…';
+  recognition.start();
+}
+
+function stopMic() {
+  isRecording = false;
+  micBtn.classList.remove('recording');
+  micBtn.title = 'Click để nói';
+  sttPrev.style.display = 'none';
+  try { recognition.stop(); } catch {}
+}
+
+// ── Collapse ───────────────────────────────────────────────────────────────────
+let collapsed = false;
+function toggleCollapse() {
+  collapsed = !collapsed;
+  document.getElementById('widget').classList.toggle('collapsed', collapsed);
+  document.getElementById('collapse-btn').textContent = collapsed ? '◻' : '—';
+  document.getElementById('collapse-btn').title = collapsed ? 'Mở rộng' : 'Thu nhỏ';
+}
+
+// ── Float popup ────────────────────────────────────────────────────────────────
+function launchFloat() {
+  const w = 370, h = window.screen.height - 80;
+  const x = window.screen.width  - w - 10;
+  const y = 40;
+  window.open(location.href, 'classroom_overlay',
+    `width=${w},height=${h},left=${x},top=${y},resizable=yes,scrollbars=no,toolbar=no,menubar=no,location=no,status=no`
+  );
+}
+
+// ── Drag to reposition (in popup mode) ────────────────────────────────────────
+const titlebar = document.getElementById('titlebar');
+let dragging = false, ox = 0, oy = 0;
+titlebar.addEventListener('mousedown', e => {
+  if (!window.opener && window.outerWidth < 500) return; // only in popup
+  dragging = true; ox = e.screenX - window.screenX; oy = e.screenY - window.screenY;
+});
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  window.moveTo(e.screenX - ox, e.screenY - oy);
+});
+document.addEventListener('mouseup', () => dragging = false);
+
+// ── File drawer ────────────────────────────────────────────────────────────────
+let drawerOpen = false;
+function toggleDrawer() {
+  drawerOpen = !drawerOpen;
+  document.getElementById('file-drawer').classList.toggle('open', drawerOpen);
+  if (drawerOpen) loadFiles();
+}
+
+async function loadFiles() {
+  const list = document.getElementById('file-list-mini');
+  list.innerHTML = '<div style="font-size:.72rem;color:rgba(255,255,255,.3);padding:4px">Đang tải…</div>';
+  try {
+    const {files, error} = await fetch('/files').then(r => r.json());
+    if (!files.length) { list.innerHTML = `<div style="font-size:.72rem;color:rgba(255,255,255,.3);padding:4px">${error || 'Chưa có file'}</div>`; return; }
+    list.innerHTML = '';
+    files.forEach(f => {
+      const row = document.createElement('div');
+      row.className = 'fi';
+      row.innerHTML = `<span>${fileIcon(f.ext)}</span><span class="fn" title="${f.name}">${f.name}</span><span class="fd">${f.modified}</span><span class="fx" title="Xóa" onclick="delFile('${esc(f.name)}',event)">✕</span>`;
+      row.addEventListener('click', () => openFile(f.name));
+      list.appendChild(row);
+    });
+  } catch { list.innerHTML = '<div style="font-size:.72rem;color:rgba(255,255,255,.3);padding:4px">Lỗi tải file.</div>'; }
+}
+
+function fileIcon(ext) {
+  const m={'.pptx':'📊','.ppt':'📊','.pdf':'📄','.docx':'📝','.doc':'📝','.xlsx':'📈','.txt':'📃','.png':'🖼','.jpg':'🖼','.mp4':'🎬','.mp3':'🎵'};
+  return m[ext] || '📁';
+}
+function esc(s) { return s.replace(/'/g,"\\'"); }
+
+async function openFile(name) {
+  const data = await fetch('/open-file',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})}).then(r=>r.json());
+  addBubble(data.reply || data.error, 'bot');
+}
+
+async function delFile(name, e) {
+  e.stopPropagation();
+  if (!confirm(`Xóa "${name}"?`)) return;
+  const data = await fetch(`/delete/${encodeURIComponent(name)}`,{method:'DELETE'}).then(r=>r.json());
+  addBubble(data.reply || data.error, 'bot');
+  loadFiles();
+}
+
+async function uploadFiles(files) {
+  if (!files.length) return;
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f);
+  const data = await fetch('/upload',{method:'POST',body:fd}).then(r=>r.json());
+  addBubble(data.reply || data.error, 'bot');
+  loadFiles();
+  document.getElementById('fi').value = '';
+}
+
+// Drag & drop onto drop zone
+const dz = document.getElementById('dz');
+document.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+document.addEventListener('dragleave', e => { if (!e.relatedTarget) dz.classList.remove('drag-over'); });
+document.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); uploadFiles(e.dataTransfer.files); });
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+addBubble('Xin chào! Tôi sẵn sàng hỗ trợ. Nhập câu hỏi hoặc nhấn 🎙 để nói.', 'bot');
+msgEl.focus();
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"venv/Scripts/python.exe\" -m pip install edge-tts keyboard --quiet)",
+      "Bash(\"venv/Scripts/python.exe\" -c \"import edge_tts, keyboard; print\\('OK'\\)\")",
+      "Bash(venv/Scripts/python.exe -c ' *)"
+    ]
+  }
+}

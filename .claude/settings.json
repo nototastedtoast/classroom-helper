@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pip install \"pywebview==4.4.1\")",
+      "Bash(python -m pip install \"pywebview==3.7.2\")",
+      "Bash(python -m pip install customtkinter requests)",
+      "Bash(python -c \"import customtkinter; import requests; print\\('imports ok'\\)\")",
+      "Bash(python -c \"from app import app; from overlay import App; print\\('ok'\\)\")",
+      "Bash(\"e:/generic codeing/spcn_classroom/venv/Scripts/python.exe\" -c \"import customtkinter, requests; print\\('OK'\\)\")",
+      "Bash(\"e:/generic codeing/spcn_classroom/venv/Scripts/python.exe\" -c \"import flask, dotenv, openai; print\\('flask/dotenv/openai OK'\\)\")",
+      "Bash(\"e:/generic codeing/spcn_classroom/venv/Scripts/python.exe\" -c \"import sounddevice, numpy; print\\('audio OK'\\)\")",
+      "Bash(\"e:/generic codeing/spcn_classroom/venv/Scripts/python.exe\" -c \"from faster_whisper import WhisperModel; print\\('whisper OK'\\)\")",
+      "Bash(\"e:/generic codeing/spcn_classroom/venv/Scripts/python.exe\" --version)",
+      "Bash(\"e:/generic codeing/spcn_classroom/venv/Scripts/pip.exe\" install faster-whisper --quiet)",
+      "Bash(\"e:/generic codeing/spcn_classroom/venv/Scripts/python.exe\" -m pip install faster-whisper)",
+      "Bash('e:/generic codeing/spcn_classroom/venv/Scripts/python.exe' -c ' *)",
+      "Bash(\"e:/generic codeing/spcn_classroom/zeroclaw.exe\" --version)",
+      "Bash(\"e:/generic codeing/spcn_classroom/zeroclaw.exe\" --help)",
+      "Bash(\"e:/generic codeing/spcn_classroom/zeroclaw.exe\" providers)",
+      "Bash(\"e:/generic codeing/spcn_classroom/zeroclaw.exe\" config --help)",
+      "Read(//c/Users/bachk/.zeroclaw/**)",
+      "Bash(venv/Scripts/python.exe -c ' *)"
+    ]
+  }
+}
