@@ -16,6 +16,9 @@ Built on [ZeroClaw](https://zeroclaw.dev) as the AI backbone, with Vietnamese sp
 | Lesson recap | Say "ôn bài" to hear where last session ended |
 | Save progress note | Memory tab → type → Lưu |
 | Import timetable from photo | File tab → Chọn ảnh → AI reads and saves it |
+| Live lesson transcript | Ghi âm tab → Bắt đầu ghi → rolling timestamped text |
+| End-of-lesson summary | Ghi âm tab → Tóm tắt → AI summarises topics and homework |
+| Save transcript | Ghi âm tab → Lưu → saves to `C:/ClassroomFiles/transcript_….txt` |
 | Push-to-talk (global) | Hold **F9** anywhere on screen |
 | Mute/unmute voice | Click **🔊** in the title bar |
 

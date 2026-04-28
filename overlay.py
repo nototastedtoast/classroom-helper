@@ -12,6 +12,7 @@ Features:
 """
 import os
 import re
+import socket
 import threading
 import time
 import tempfile
@@ -25,15 +26,33 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ── Flask backend ─────────────────────────────────────────────────────────────
-_PORT = 5000
-_BASE = f"http://localhost:{_PORT}"
+def _free_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
 
-def _start_flask():
-    from app import app  # noqa: PLC0415
-    app.run(port=_PORT, debug=False, use_reloader=False, threaded=True)
+_PORT = _free_port()
+_BASE = f"http://127.0.0.1:{_PORT}"
 
-threading.Thread(target=_start_flask, daemon=True).start()
-for _ in range(40):
+_flask_thread: threading.Thread | None = None
+_flask_lock = threading.Lock()
+
+def _run_flask() -> None:
+    try:
+        from app import app as _app  # noqa: PLC0415
+        _app.run(port=_PORT, debug=False, use_reloader=False, threaded=True)
+    except Exception as e:
+        print(f"[Flask] crashed: {e}")
+
+def _ensure_flask() -> None:
+    global _flask_thread
+    with _flask_lock:
+        if _flask_thread is None or not _flask_thread.is_alive():
+            _flask_thread = threading.Thread(target=_run_flask, daemon=True, name="flask")
+            _flask_thread.start()
+
+_ensure_flask()
+for _ in range(100):
     try:
         requests.get(f"{_BASE}/zc/status", timeout=1)
         break
@@ -149,6 +168,8 @@ class App(ctk.CTk):
         self._rec_frames: list = []
         self._tts_muted = False
         self._pinned = True
+        self._transcript_running = False
+        self._transcript_lines: list[str] = []
 
         self._build()
         self._setup_ptt()
@@ -170,6 +191,7 @@ class App(ctk.CTk):
         self._build_chat()
         self._build_files()
         self._build_memory()
+        self._build_transcript()
         self._switch("chat")
 
     def _titlebar(self):
@@ -208,13 +230,14 @@ class App(ctk.CTk):
         bar.pack(fill="x")
         bar.pack_propagate(False)
         self._tabs: dict[str, ctk.CTkButton] = {}
-        for label, key in [("💬 Hỏi đáp", "chat"), ("📂 File", "files"), ("🧠 Ký ức", "memory")]:
-            b = ctk.CTkButton(bar, text=label, height=30, width=110,
+        for label, key in [("💬 Hỏi đáp", "chat"), ("📂 File", "files"),
+                           ("🧠 Ký ức", "memory"), ("📝 Ghi âm", "transcript")]:
+            b = ctk.CTkButton(bar, text=label, height=30, width=84,
                               fg_color=ACCENT if key == "chat" else "transparent",
                               hover_color=ACCENT, text_color=TEXT,
                               font=ctk.CTkFont(size=11), corner_radius=6,
                               command=lambda k=key: self._switch(k))
-            b.pack(side="left", padx=3, pady=3)
+            b.pack(side="left", padx=2, pady=3)
             self._tabs[key] = b
 
     def _quickbar(self):
@@ -244,6 +267,8 @@ class App(ctk.CTk):
             self._load_files()
         if key == "memory":
             self._load_memory()
+        if key == "transcript":
+            self._update_trans_buttons()
 
     # ── Chat panel ────────────────────────────────────────────────────────────
     def _build_chat(self):
@@ -317,8 +342,11 @@ class App(ctk.CTk):
         try:
             r = requests.post(f"{_BASE}/chat", json={"message": msg}, timeout=60)
             reply = r.json().get("reply", "?")
+        except requests.exceptions.ConnectionError:
+            _ensure_flask()
+            reply = "Backend đang khởi động lại. Vui lòng thử lại sau vài giây."
         except Exception as e:
-            reply = f"Lỗi kết nối: {e}"
+            reply = f"Lỗi: {e}"
         self.after(0, lambda: self._bot(reply))
 
     # ── TTS ───────────────────────────────────────────────────────────────────
@@ -620,6 +648,154 @@ class App(ctk.CTk):
         except Exception as e:
             self.after(0, lambda: self._stt_lbl.configure(text=f"Lỗi STT: {e}"))
 
+    # ── Transcript panel ─────────────────────────────────────────────────────
+    def _build_transcript(self):
+        p = ctk.CTkFrame(self._content, fg_color=BG, corner_radius=0)
+        self._panels["transcript"] = p
+
+        hdr = ctk.CTkFrame(p, fg_color=BG, height=36)
+        hdr.pack(fill="x", padx=8, pady=(6, 2))
+        hdr.pack_propagate(False)
+        ctk.CTkLabel(hdr, text="Ghi âm buổi học", font=ctk.CTkFont(size=12, weight="bold"),
+                     text_color=ACC2).pack(side="left")
+        ctk.CTkButton(hdr, text="Xóa", width=40, height=26, fg_color=BORDER,
+                      hover_color="#7f1d1d", text_color=TEXT, font=ctk.CTkFont(size=11),
+                      command=self._clear_transcript).pack(side="right", padx=(2, 0))
+        ctk.CTkButton(hdr, text="💾 Lưu", width=62, height=26, fg_color=BORDER,
+                      hover_color=ACCENT, text_color=TEXT, font=ctk.CTkFont(size=11),
+                      command=self._save_transcript).pack(side="right", padx=2)
+
+        self._trans_box = ctk.CTkTextbox(p, fg_color=BG2, text_color=TEXT,
+                                         font=ctk.CTkFont(size=11), wrap="word",
+                                         state="disabled", corner_radius=8)
+        self._trans_box.pack(fill="both", expand=True, padx=8, pady=(0, 4))
+
+        ctrl = ctk.CTkFrame(p, fg_color=BG, height=40)
+        ctrl.pack(fill="x", padx=8, pady=(0, 8))
+        ctrl.pack_propagate(False)
+
+        self._trans_btn = ctk.CTkButton(
+            ctrl, text="▶  Bắt đầu ghi", height=34,
+            fg_color=ACCENT, hover_color=ACC2, text_color="#fff",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            command=self._toggle_transcript)
+        self._trans_btn.pack(side="left", fill="x", expand=True, padx=(0, 4))
+
+        ctk.CTkButton(ctrl, text="🤖 Tóm tắt", width=88, height=34,
+                      fg_color=BORDER, hover_color=ACCENT, text_color=TEXT,
+                      font=ctk.CTkFont(size=11),
+                      command=self._summarize_transcript).pack(side="right")
+
+    def _toggle_transcript(self):
+        if self._transcript_running:
+            self._stop_transcript()
+        else:
+            self._start_transcript()
+
+    def _start_transcript(self):
+        if not _AUDIO_OK:
+            self._bot("Cần cài sounddevice để ghi âm.")
+            return
+        if not _WHISPER_OK:
+            self._bot("Cần cài faster-whisper để phiên âm.")
+            return
+        self._transcript_running = True
+        self._update_trans_buttons()
+        threading.Thread(target=self._record_transcript, daemon=True).start()
+
+    def _stop_transcript(self):
+        self._transcript_running = False
+        self._update_trans_buttons()
+
+    def _update_trans_buttons(self):
+        if self._transcript_running:
+            self._trans_btn.configure(text="⏹  Dừng ghi", fg_color=MIC_ON, hover_color="#991b1b")
+        else:
+            self._trans_btn.configure(text="▶  Bắt đầu ghi", fg_color=ACCENT, hover_color=ACC2)
+
+    def _record_transcript(self):
+        SR          = 16000
+        CHUNK_SECS  = 10
+        target      = CHUNK_SECS * SR
+        buffer: list = []
+        count       = 0
+
+        with sd.InputStream(samplerate=SR, channels=1, dtype="int16", blocksize=1024) as stream:
+            while self._transcript_running:
+                block, _ = stream.read(1024)
+                buffer.append(block.copy())
+                count += len(block)
+                if count >= target:
+                    chunk = np.concatenate(buffer, axis=0)
+                    buffer, count = [], 0
+                    threading.Thread(target=self._process_chunk,
+                                     args=(chunk,), daemon=True).start()
+            # Flush remaining audio on stop
+            if buffer:
+                chunk = np.concatenate(buffer, axis=0)
+                threading.Thread(target=self._process_chunk,
+                                 args=(chunk,), daemon=True).start()
+
+    def _process_chunk(self, pcm: "np.ndarray"):
+        try:
+            timestamp = time.strftime("%H:%M:%S")
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+                tmp = f.name
+            with wave.open(tmp, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(16000)
+                wf.writeframes(pcm.tobytes())
+            model = _get_whisper()
+            if model is None:
+                return
+            segs, _ = model.transcribe(tmp, language="vi")
+            text = " ".join(s.text for s in segs).strip()
+            Path(tmp).unlink(missing_ok=True)
+            if text:
+                line = f"[{timestamp}]  {text}"
+                self._transcript_lines.append(line)
+                self.after(0, lambda ln=line: self._append_trans(ln))
+        except Exception as e:
+            print(f"[Transcript] {e}")
+
+    def _append_trans(self, line: str):
+        self._trans_box.configure(state="normal")
+        self._trans_box.insert("end", line + "\n")
+        self._trans_box.configure(state="disabled")
+        self._trans_box.see("end")
+
+    def _clear_transcript(self):
+        self._transcript_lines.clear()
+        self._trans_box.configure(state="normal")
+        self._trans_box.delete("1.0", "end")
+        self._trans_box.configure(state="disabled")
+
+    def _save_transcript(self):
+        if not self._transcript_lines:
+            return
+        folder = Path("E:/TroLyLopHoc")
+        folder.mkdir(parents=True, exist_ok=True)
+        fname = f"transcript_{time.strftime('%Y-%m-%d_%H-%M')}.txt"
+        (folder / fname).write_text("\n".join(self._transcript_lines), encoding="utf-8")
+        self._bot(f"Đã lưu transcript: {fname}")
+        self._switch("chat")
+
+    def _summarize_transcript(self):
+        if not self._transcript_lines:
+            self._bot("Chưa có nội dung ghi âm nào để tóm tắt.")
+            self._switch("chat")
+            return
+        full = "\n".join(self._transcript_lines)
+        prompt = (
+            f"Đây là transcript buổi học hôm nay:\n\n{full}\n\n"
+            "Hãy tóm tắt ngắn gọn: các chủ đề đã học, thuật ngữ quan trọng, "
+            "và bài tập về nhà (nếu có)."
+        )
+        self._switch("chat")
+        self._user("Tóm tắt buổi học")
+        threading.Thread(target=self._do_send, args=(prompt,), daemon=True).start()
+
     # ── Window controls ───────────────────────────────────────────────────────
     def _drag_start(self, e):
         self._dx = e.x_root - self.winfo_x()
@@ -647,7 +823,9 @@ class App(ctk.CTk):
             col = "#4ade80" if has_ai else "#f87171"
             self.after(0, lambda: self._dot.configure(text_color=col))
         except Exception:
-            pass
+            # Backend unreachable — restart it and show red dot
+            _ensure_flask()
+            self.after(0, lambda: self._dot.configure(text_color="#f87171"))
 
 
 if __name__ == "__main__":
